@@ -1,1 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Smart Traffic Control</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: white;
+}
+
+header {
+    padding: 20px;
+    text-align: center;
+    background: rgba(0,0,0,0.3);
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.container {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 20px;
+    padding: 20px;
+}
+
+.panel {
+    background: rgba(255,255,255,0.08);
+    padding: 20px;
+    border-radius: 15px;
+    backdrop-filter: blur(8px);
+}
+
+button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 30px;
+    background: linear-gradient(45deg, #00c6ff, #0072ff);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: 15px;
+}
+
+.card {
+    background: rgba(0,0,0,0.4);
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.signal {
+    width: 90px;
+    margin: auto;
+    background: #111;
+    padding: 15px;
+    border-radius: 20px;
+}
+
+.light {
+    width: 40px;
+    height: 40px;
+    margin: 10px auto;
+    border-radius: 50%;
+    opacity: 0.2;
+}
+
+.red { background: red; }
+.yellow { background: yellow; }
+.green { background: lime; }
+
+.active {
+    opacity: 1;
+    box-shadow: 0 0 15px currentColor;
+}
+
+.emergency {
+    color: #ff3b3b;
+    font-weight: bold;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.3; }
+}
+</style>
+</head>
+
+<body>
+
+<header>🚦 AI-Based Smart Traffic Management System</header>
+
+<div style="text-align:center; margin-top:10px;">
+   <button type="button" onclick="unlockVoice()">🔊 Enable Voice Alerts</button>
+
+</div>
+
+<div class="container">
+
+<div class="panel">
+<h3>Control Panel</h3>
+
+<form method="POST" enctype="multipart/form-data">
+    <label><input type="radio" name="mode" value="live" required> Live Camera</label><br><br>
+    <label><input type="radio" name="mode" value="upload"> Upload Video</label><br><br>
+    <input type="file" name="video"><br><br>
+    <button type="submit">Start Monitoring</button>
+</form>
+
+<h3>Traffic Signal</h3>
+<div class="signal">
+    <div id="red" class="light red"></div>
+    <div id="yellow" class="light yellow"></div>
+    <div id="green" class="light green"></div>
+</div>
+</div>
+
+<div class="panel">
+<h3>Live Traffic Dashboard</h3>
+
+<div class="cards">
+    <div class="card">Status<br><b>{{ status.state }}</b></div>
+    <div class="card">Traffic Level<br><b>{{ status.level }}</b></div>
+
+    {% if status.result %}
+    <div class="card">Total Vehicles<br><b>{{ status.result.total }}</b></div>
+    <div class="card">Avg Density<br><b>{{ status.result.average }}</b></div>
+    <div class="card {% if status.result.emergency > 0 %}emergency{% endif %}">
+        Emergency<br><b>{{ status.result.emergency }}</b>
+    </div>
+    <div class="card">Green Time<br><b>{{ status.green }} sec</b></div>
+    {% endif %}
+</div>
+</div>
+</div>
+
+<input type="hidden" id="emergencyFlag" value="{{ 1 if status.result and status.result.emergency > 0 else 0 }}">
+<input type="hidden" id="level" value="{{ status.level }}">
+
+<audio id="siren" src="/static/sounds/siren.wav"></audio>
+<audio id="greenSound" src="/static/sounds/beep.wav"></audio>
+<script>
+let voiceUnlocked = false;
+let selectedVoice = null;
+
+/* 🔊 ENABLE VOICE */
+function unlockVoice() {
+    speechSynthesis.cancel();
+
+    const voices = speechSynthesis.getVoices();
+    selectedVoice = voices.find(v =>
+        v.name.toLowerCase().includes("zira") ||
+        v.name.toLowerCase().includes("female") ||
+        v.lang.startsWith("en")
+    ) || voices[0];
+
+    const msg = new SpeechSynthesisUtterance(
+        "Voice alerts enabled successfully."
+    );
+    msg.voice = selectedVoice;
+    msg.volume = 1;
+    speechSynthesis.speak(msg);
+
+    voiceUnlocked = true;
+
+    alert("🔊 Voice Alerts Enabled!");
+}
+
+/* 🚨 EMERGENCY VOICE */
+function emergencyVoice() {
+    if (!voiceUnlocked || !selectedVoice) return;
+
+    const msg = new SpeechSynthesisUtterance(
+        "Attention please. Emergency vehicle detected. Signal is cleared."
+    );
+    msg.voice = selectedVoice;
+    msg.rate = 0.9;
+    msg.pitch = 1.1;
+    msg.volume = 1;
+
+    speechSynthesis.speak(msg);
+}
+
+/* 🚦 TRAFFIC LIGHT CONTROL */
+function updateSignal(level) {
+    // Clear all lights first
+    document.getElementById("red").classList.remove("active");
+    document.getElementById("yellow").classList.remove("active");
+    document.getElementById("green").classList.remove("active");
+
+    if (level === "LOW") {
+        document.getElementById("green").classList.add("active");
+    }
+    else if (level === "MEDIUM") {
+        document.getElementById("yellow").classList.add("active");
+    }
+    else if (level === "HIGH") {
+        document.getElementById("red").classList.add("active");
+    }
+}
+
+/* 🚦 PAGE LOAD */
+window.onload = function () {
+
+    const emergency = document.getElementById("emergencyFlag")?.value;
+    const level = document.getElementById("level")?.value;
+
+    // Always update signal
+    if (level) updateSignal(level);
+
+    // Emergency overrides signal
+    if (emergency === "1") {
+        updateSignal("HIGH");
+        emergencyVoice();
+    }
+};
+</script>
+
+
+
+
+
+<footer style="text-align:center; padding:10px; opacity:0.6;">
+Final Year Project • AI & Smart Systems
+</footer>
+
+</body>
+</html>
 
